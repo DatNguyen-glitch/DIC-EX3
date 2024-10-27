@@ -22,7 +22,7 @@ reg [2:0] state_cs, state_ns;
 parameter IDLE = 3'd0;
 parameter IN_DATA = 3'd1;
 parameter EXE = 3'd2;
-
+integer i;
 //////////////The output port shoud be registers///////////////////////
 output reg out_valid;
 output reg[35:0] Out_OFM;
@@ -44,15 +44,15 @@ always@(posedge clk or negedge rst_n) begin
 		for (i=0;i<9;i=i+1)
 			Weight_Buffer[i] <= 0;
 	end
-	else if(in_valid && count < 9)
+	else if(in_valid && (count < 9))
 		Weight_Buffer[count] <= In_Weight;
 end
 always@(posedge clk or negedge rst_n) begin
 	if(!rst_n) begin
 		for (i=0;i<196;i=i+1)
-			IFM[i] <= 0;
+			IFM_Buffer[i] <= 0;
 	end
-	else if(in_valid && count < 196) begin
+	else if(in_valid && (count < 196)) begin
 		if(count < 42) begin
 			IFM_Buffer[count]  <= In_IFM;
 			count = count + 1;
@@ -78,7 +78,7 @@ always@(*) begin				// this block active whenever inputs change
 	case(state_cs)
 		IDLE:					// if state_cs = IDLE
 		begin
-			if(in_valid && count > 42)		// if in_valid and 42 input is loaded
+			if(in_valid && (count > 42))		// if in_valid and 42 input is loaded
 				state_ns = EXE;
 			else
 				state_ns = IDLE;
@@ -89,7 +89,7 @@ always@(*) begin				// this block active whenever inputs change
 		end
 		EXE:					// if state_cs = EXE
 		begin
-			if(!in_valid)		// if not in_valid
+			if(in_valid !== 1)		// if not in_valid
 				state_ns = IDLE;
 			else
 				state_ns = EXE;

@@ -43,6 +43,7 @@ always@(posedge clk or negedge rst_n) begin
 	if(!rst_n) begin
 		for (i=0;i<9;i=i+1)
 			Weight_Buffer[i] <= 0;
+		count <= 0;
 	end
 	else if(in_valid && (count < 9))
 		Weight_Buffer[count] <= In_Weight;
@@ -55,7 +56,7 @@ always@(posedge clk or negedge rst_n) begin
 	else if(in_valid && (count < 196)) begin
 		if(count < 42) begin
 			IFM_Buffer[count]  <= In_IFM;
-			count = count + 1;
+			count <= count + 1;
 		end
 		else begin
 			IFM_Buffer[current_IFM-1] <= IFM_Buffer[current_IFM-1+14];		// modify value of line buffer
@@ -94,8 +95,10 @@ always@(*) begin				// this block active whenever inputs change
 			else
 				state_ns = EXE;
 		end
-		default:				// if state_cs != IDLE or IN_DATA or EXE
+		default:
+		begin				// if state_cs != IDLE or IN_DATA or EXE
 			state_ns = IDLE;
+		end
 	endcase
 end
 

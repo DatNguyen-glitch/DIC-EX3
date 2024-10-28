@@ -29,7 +29,7 @@ output reg[35:0] Out_OFM;
 //////////////////////////////////////////////////////////////////////
 reg [7:0] count = 8'b00000000;
 reg [7:0] current_IFM = 8'b00000000;
-
+reg [15:0] temp1, temp2;
 /////// 2 Buffer/////////////
 //You have to sue these buffers for the 3-1 ///////
 reg [15:0]IFM_Buffer[0:195] ;   //  Use this buffer to store IFM
@@ -60,9 +60,11 @@ always@(posedge clk or negedge rst_n) begin
 			count <= count + 1;
 		end
 		else begin
-			IFM_Buffer[current_IFM-1] <= IFM_Buffer[current_IFM-1+14];		// modify value of line buffer
-			IFM_Buffer[current_IFM-1+14] <= IFM_Buffer[current_IFM-1+28];
-			IFM_Buffer[current_IFM-1+28] <= In_IFM;
+			temp1 = IFM_Buffer[current_IFM-1+14];		// modify value of line buffer
+            temp2 = IFM_Buffer[current_IFM-1+28];
+            IFM_Buffer[current_IFM-1] <= temp1;		
+            IFM_Buffer[current_IFM-1+14] <= temp2;
+            IFM_Buffer[current_IFM-1+28] <= In_IFM;
 		end	
 	end
 

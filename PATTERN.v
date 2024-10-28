@@ -61,6 +61,7 @@ always	#(CYCLE/2.0) clk = ~clk; //clock
 // ========================================
 integer pat_read, ans_read, file;
 integer PAT_NUM;
+integer total_latency, latency;
 integer out_val_clk_times;
 integer i_pat,i,j;
 integer input_matrix_size;
@@ -85,13 +86,13 @@ initial begin
   reset_signal_task;
 
   i_pat = 0;
-  // total_latency = 0;
+  total_latency = 0;
   idx_count = 0;
   file = $fscanf(pat_read, "%d\n", PAT_NUM);
 
-  for (i_pat = 0; i_pat < 200; i_pat = i_pat + 1)
+  for (i_pat = 0; i_pat < PAT_NUM; i_pat = i_pat + 1)
   begin
-    // latency = -1;
+    latency = -1;
 
     index_op=0;
     flag=0;
@@ -99,8 +100,8 @@ initial begin
 	  wait_out_valid_task;
     check_ans_task;
 
-    // total_latency = total_latency + latency;
-    $display("\033[0;34mPASS PATTERN NO.%4d,\033[m \033[0;32mexecution cycle : %4d,\033[m",i_pat , latency_pre);
+    total_latency = total_latency + latency;
+    $display("\033[0;34mPASS PATTERN NO.%4d,\033[m \033[0;32mexecution cycle : %4d,\033[m",i_pat , latency);
   end
   $fclose(pat_read);
 
@@ -109,7 +110,7 @@ end
 
 initial begin
   while(1) begin
-    if((out_valid === 0) && (Out_OFM !== 0))
+    if((out_valid === 0) && (out_valid !== 0))
     begin
       $display("***********************************************************************");
       $display("*  Error                                                              *");
@@ -228,93 +229,16 @@ begin
   // Clear in_valid and matrix
   in_valid = 1'b0;
   In_IFM   = 'bx;
+  latency = 144;
 
 end
 endtask
-
-initial begin
-  latency = 0;
-end
-reg computing_ff;
-reg end_of_output_compare_cur;
-wire end_of_output_compare_next = out_valid;
-
-reg start_sending_pat_f;
-
-wire start_sending_pat_f_next = start_sending_pat_f == 0 && in_valid == 1;
-
-always @(posedge clk or negedge rst_n)
-begin
-  if(~rst_n)
-    start_sending_pat_f <= 0;
-  else if(end_of_output_compare_f)
-    start_sending_pat_f <= 0;
-  else
-    start_sending_pat_f <= start_sending_pat_f_next;
-end
-
-reg[15:0] latency;
-reg[15:0] latency_pre;
-
-always @(posedge clk or negedge rst_n)
-begin
-  if(~rst_n)
-    end_of_output_compare_cur<= 0;
-  else
-    end_of_output_compare_cur <= end_of_output_compare_next;
-end
-
-// Detect the 1,0
-wire end_of_output_compare_f = end_of_output_compare_cur == 1 && end_of_output_compare_next == 0;
-
-// latency calculation
-always @(posedge clk or negedge rst_n)
-begin
-  if(~rst_n)
-  begin
-    latency <= 0;
-    latency_pre <= 0;
-  end
-  else if(end_of_output_compare_f)
-  begin
-    latency <= 0;
-    latency_pre <= latency;
-  end
-  else if(computing_ff)
-  begin
-    latency <= latency + 1;
-  end
-  else if(start_sending_pat_f_next)
-  begin
-    latency <= 1;
-  end
-end
-
-always @(posedge clk or negedge rst_n)
-begin
-  if(~rst_n)
-  begin
-    computing_ff <= 0;
-  end
-  else if(end_of_output_compare_f)
-  begin
-    computing_ff <= 0;
-  end
-  else if(in_valid == 1)
-  begin
-    computing_ff <= 1;
-  end
-  else
-  begin
-    computing_ff <= computing_ff;
-  end
-end
 
 task wait_out_valid_task;
 begin
   while(out_valid !== 1)
   begin
-    // latency = latency + 1;
+    latency = latency + 1;
     if(latency >= 5000)
     begin
       $display("***********************************************************************");
@@ -335,9 +259,8 @@ task check_ans_task;
 begin
   // OUTPUT IS 6X6
   golden_size = 6;
-  $display("golden_size*golden_size-index_op = %30d", golden_size*golden_size-index_op);
+  // $display("golden_size*golden_size-index_op = %30d", golden_size*golden_size-index_op);
   for (i=index_op; i<golden_size*golden_size; i=i+1) begin
-    // latency = latency + 1;
     if (flag==1 && out_valid == 0)  begin
       $display("***********************************************************************");
       $display("*  Error                                                              *");
@@ -364,6 +287,7 @@ begin
       for(j=0 ; j < golden_size; j=j+1)
       begin
         file = $fscanf(ans_read,"%d ",golden_word);
+        latency = latency + 1;
         // if(out_valid !== 1)
         // begin
         //   $display("***********************************************************************");
@@ -401,7 +325,7 @@ begin
           repeat(2)@(negedge clk);
           $finish;
   end
-  // total_latency = total_latency + latency;
+  total_latency = total_latency + latency;
   for (i=0; i<36; i=i+1) Out_OFM_temp[i] = 0;
   flag=0;
   index_op=0;
@@ -414,6 +338,9 @@ endtask
 task YOU_PASS_task; begin
   $display("***********************************************************************");
   $display("*                           \033[0;32mCongratulations!\033[m                          *");
+  $display("*  Your execution cycles = %18d   cycles                *", total_latency);
+  $display("*  Your clock period     = %20.1f ns                    *", CYCLE);
+  $display("*  Total Latency         = %20.1f ns                    *", total_latency*CYCLE);
   $display("***********************************************************************");
   $finish;
 end endtask

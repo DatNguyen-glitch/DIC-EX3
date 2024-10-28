@@ -63,25 +63,28 @@ always@(posedge clk or negedge rst_n) begin
 		last_convolution_done <= 0;
 	end
 	else if(in_valid && (count < 196)) begin
-		if(count < 42) begin
+		if(count < 32) begin
 			IFM_Buffer[count]  <= In_IFM;
 			count <= count + 1;
 		end
 		else if(first_convolution_done) begin
-			temp1 = IFM_Buffer[current_IFM-1+14];		// modify value of line buffer
-			temp2 = IFM_Buffer[current_IFM-1+28];
-			IFM_Buffer[current_IFM-1] <= temp1;		
-			IFM_Buffer[current_IFM-1+14] <= temp2;
-			IFM_Buffer[current_IFM-1+28] <= In_IFM;
-			$display("IFM_Buffer 3x14 Matrix:");
-			for (i = 0; i < 3; i = i + 1) begin
-			    $display("%d %d %d %d %d %d %d %d %d %d %d %d %d %d", 
-				     IFM_Buffer[i*14], IFM_Buffer[i*14 + 1], IFM_Buffer[i*14 + 2], 
-				     IFM_Buffer[i*14 + 3], IFM_Buffer[i*14 + 4], IFM_Buffer[i*14 + 5], 
-				     IFM_Buffer[i*14 + 6], IFM_Buffer[i*14 + 7], IFM_Buffer[i*14 + 8], 
-				     IFM_Buffer[i*14 + 9], IFM_Buffer[i*14 + 10], IFM_Buffer[i*14 + 11], 
-				     IFM_Buffer[i*14 + 12], IFM_Buffer[i*14 + 13]);
-			end
+			for(i=0;i<30;i=i+1)
+				IFM_Buffer[i] <= IFM_Buffer[i+1];
+			IFM_Buffer[30] <= In_IFM;
+			// temp1 = IFM_Buffer[current_IFM-1+14];		// modify value of line buffer
+			// temp2 = IFM_Buffer[current_IFM-1+28];
+			// IFM_Buffer[current_IFM-1] <= temp1;		
+			// IFM_Buffer[current_IFM-1+14] <= temp2;
+			// IFM_Buffer[current_IFM-1+28] <= In_IFM;
+			// $display("IFM_Buffer 3x14 Matrix:");
+			// for (i = 0; i < 3; i = i + 1) begin
+			//     $display("%d %d %d %d %d %d %d %d %d %d %d %d %d %d", 
+			// 	     IFM_Buffer[i*14], IFM_Buffer[i*14 + 1], IFM_Buffer[i*14 + 2], 
+			// 	     IFM_Buffer[i*14 + 3], IFM_Buffer[i*14 + 4], IFM_Buffer[i*14 + 5], 
+			// 	     IFM_Buffer[i*14 + 6], IFM_Buffer[i*14 + 7], IFM_Buffer[i*14 + 8], 
+			// 	     IFM_Buffer[i*14 + 9], IFM_Buffer[i*14 + 10], IFM_Buffer[i*14 + 11], 
+			// 	     IFM_Buffer[i*14 + 12], IFM_Buffer[i*14 + 13]);
+			// end
 		end	
 	end
 
@@ -160,17 +163,27 @@ always@(posedge clk or negedge rst_n) begin
         $display("%d %d %d", Weight_Buffer[0], Weight_Buffer[1], Weight_Buffer[2]);
         $display("%d %d %d", Weight_Buffer[3], Weight_Buffer[4], Weight_Buffer[5]);
         $display("%d %d %d", Weight_Buffer[6], Weight_Buffer[7], Weight_Buffer[8]);
-	
-		OFM_Buffer[current_OFM_Buffer] <= IFM_Buffer[current_IFM]*Weight_Buffer[0]			// 3x3 convolution
-				  +IFM_Buffer[current_IFM+1]*Weight_Buffer[1]
-				  +IFM_Buffer[current_IFM+2]*Weight_Buffer[2]
-				  +IFM_Buffer[current_IFM+14]*Weight_Buffer[3]
-				  +IFM_Buffer[current_IFM+15]*Weight_Buffer[4]
-				  +IFM_Buffer[current_IFM+16]*Weight_Buffer[5]
-				  +IFM_Buffer[current_IFM+28]*Weight_Buffer[6]
-				  +IFM_Buffer[current_IFM+29]*Weight_Buffer[7]
-				  +IFM_Buffer[current_IFM+30]*Weight_Buffer[8];
-		if(current_IFM < 11) begin
+
+		OFM_Buffer[current_OFM_Buffer] <= IFM_Buffer[0]*Weight_Buffer[0]			// 3x3 convolution
+				  +IFM_Buffer[1]*Weight_Buffer[1]
+				  +IFM_Buffer[2]*Weight_Buffer[2]
+				  +IFM_Buffer[14]*Weight_Buffer[3]
+				  +IFM_Buffer[15]*Weight_Buffer[4]
+				  +IFM_Buffer[16]*Weight_Buffer[5]
+				  +IFM_Buffer[28]*Weight_Buffer[6]
+				  +IFM_Buffer[29]*Weight_Buffer[7]
+				  +IFM_Buffer[30]*Weight_Buffer[8];
+
+		// OFM_Buffer[current_OFM_Buffer] <= IFM_Buffer[current_IFM]*Weight_Buffer[0]			// 3x3 convolution
+		// 		  +IFM_Buffer[current_IFM+1]*Weight_Buffer[1]
+		// 		  +IFM_Buffer[current_IFM+2]*Weight_Buffer[2]
+		// 		  +IFM_Buffer[current_IFM+14]*Weight_Buffer[3]
+		// 		  +IFM_Buffer[current_IFM+15]*Weight_Buffer[4]
+		// 		  +IFM_Buffer[current_IFM+16]*Weight_Buffer[5]
+		// 		  +IFM_Buffer[current_IFM+28]*Weight_Buffer[6]
+		// 		  +IFM_Buffer[current_IFM+29]*Weight_Buffer[7]
+		// 		  +IFM_Buffer[current_IFM+30]*Weight_Buffer[8];
+		if(current_IFM < 12) begin
 			current_IFM <= current_IFM + 1;
 		end
 		else begin

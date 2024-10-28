@@ -52,6 +52,7 @@ always@(posedge clk or negedge rst_n) begin
 	if(!rst_n) begin
 		for (i=0;i<196;i=i+1)
 			IFM_Buffer[i] <= 0;
+		count <= 0;
 	end
 	else if(in_valid && (count < 196)) begin
 		if(count < 42) begin
@@ -69,40 +70,43 @@ end
 ///////////////////////////////////////////////////////
 
 always@(posedge clk or negedge rst_n) begin
-	if(!rst_n)
-		state_cs <= IDLE;		// reset state_cs to 000 when rst_n clock = 0
-	else
-		state_cs <= state_ns;	// set state_cs to state_ns 
+    if(!rst_n)
+        state_cs <= IDLE;		// reset state_cs to IDLE when rst_n clock = 0
+    else
+        state_cs <= state_ns;	// set state_cs to state_ns 
 end
 
 always@(*) begin				// this block active whenever inputs change
-	case(state_cs)
-		IDLE:					// if state_cs = IDLE
-		begin
-			if(in_valid && (count > 42))		// if in_valid and 42 input is loaded
-				state_ns = EXE;
-			else
-				state_ns = IDLE;
-		end
-		IN_DATA:				// if state_cs = IN_DATA
-		begin
-			state_ns = EXE;
-		end
-		EXE:					// if state_cs = EXE
-		begin
-			if(in_valid !== 1)		// if not in_valid
-				state_ns = IDLE;
-			else
-				state_ns = EXE;
-		end
-		default:
-		begin				// if state_cs != IDLE or IN_DATA or EXE
-			state_ns = IDLE;
-		end
-	endcase
+    case(state_cs)
+        IDLE:					// if state_cs = IDLE
+        begin
+            if(in_valid && (count < 42))		// if in_valid and less than 42 input is loaded
+                state_ns = IN_DATA;
+            else if (in_valid && (count >= 42)) // if in_valid and 42 or more input is loaded
+                state_ns = EXE;
+            else
+                state_ns = IDLE;
+        end
+        IN_DATA:				// if state_cs = IN_DATA
+        begin
+            if (count >= 42)	// if 42 or more input is loaded
+                state_ns = EXE;
+            else
+                state_ns = IN_DATA;
+        end
+        EXE:					// if state_cs = EXE
+        begin
+            if(in_valid !== 1)		// if not in_valid
+                state_ns = IDLE;
+            else
+                state_ns = EXE;
+        end
+        default:
+        begin				// if state_cs != IDLE or IN_DATA or EXE
+            state_ns = IDLE;
+        end
+    endcase
 end
-
-
 
 always@(posedge clk or negedge rst_n) begin
 	if(!rst_n) begin

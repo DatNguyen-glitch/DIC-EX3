@@ -83,16 +83,16 @@ always@(*) begin
     case(state_cs)
         EXE: //////////////                  
         begin
-            if((current_IFM == 12) && (count_wait == 0))
+            if((current_IFM == 11) && (count_wait == 0))
                 state_ns = UPDATE;
             else
                 state_ns = EXE;
         end /////////
         UPDATE: //////////////
         begin
-            if((count_wait == 3) && in_valid) begin
+            if((count_wait == 2) && in_valid) begin
                 state_ns = EXE;
-		        current_IFM <= 0;
+		current_IFM <= 0;
 	        end
             else
                 state_ns = UPDATE;
@@ -113,11 +113,19 @@ always@(posedge clk or negedge rst_n) begin
 		for(i=0;i<30;i=i+1)
 			IFM_Buffer[i] <= IFM_Buffer[i+1];
 		IFM_Buffer[30] <= In_IFM;
-        count_wait <= count_wait + 1;
-        $display("IFM_Buffer 3x3 Matrix (count_wait):");
+		count_wait <= count_wait + 1;
+		$display("count_wait): %d", count_wait);
+		$display("IFM_Buffer 3x3 Matrix (count_wait):");
 		$display("%d %d %d", IFM_Buffer[0], IFM_Buffer[1], IFM_Buffer[2]);
 		$display("%d %d %d", IFM_Buffer[14], IFM_Buffer[15], IFM_Buffer[16]);
-		$display("%d %d %d", IFM_Buffer[28], IFM_Buffer[29], IFM_Buffer[30]);	
+		$display("%d %d %d", IFM_Buffer[28], IFM_Buffer[29], IFM_Buffer[30]);
+		$display("%d %d %d %d %d %d %d %d %d %d %d %d %d %d ",IFM_Buffer[0],IFM_Buffer[1],IFM_Buffer[2],IFM_Buffer[3],IFM_Buffer[4],
+									IFM_Buffer[5],IFM_Buffer[6],IFM_Buffer[7],IFM_Buffer[8],IFM_Buffer[9],
+									IFM_Buffer[0],IFM_Buffer[0],IFM_Buffer[0],IFM_Buffer[13]);
+		$display("%d %d %d %d %d %d %d %d %d %d %d %d %d %d ",IFM_Buffer[14],IFM_Buffer[15],IFM_Buffer[16],IFM_Buffer[17],IFM_Buffer[18],
+									IFM_Buffer[19],IFM_Buffer[20],IFM_Buffer[21],IFM_Buffer[22],IFM_Buffer[23],
+									IFM_Buffer[24],IFM_Buffer[25],IFM_Buffer[26],IFM_Buffer[27]);
+		$display("%d %d %d %d",IFM_Buffer[28],IFM_Buffer[29],IFM_Buffer[30],IFM_Buffer[31]);	
 	end
 end
 
@@ -152,13 +160,22 @@ always@(posedge clk or negedge rst_n) begin
 				  +IFM_Buffer[29]*Weight_Buffer[7]
 				  +IFM_Buffer[30]*Weight_Buffer[8];	
 		current_OFM_Buffer <= current_OFM_Buffer + 1;
-	    current_IFM <= current_IFM + 1;
-	    $display("current_IFM: %d ", current_IFM);
-		if(current_IFM < 12) begin
+	    	current_IFM <= current_IFM + 1;
+		count_wait <= 0;
+	    	$display("current_IFM: %d ", current_IFM);
+		if(current_IFM < 11) begin
 			for(i=0;i<30;i=i+1)
 				IFM_Buffer[i] <= IFM_Buffer[i+1];
 			IFM_Buffer[30] <= In_IFM;
 		end
+		$display("IFM Buffer:");		
+		$display("%d %d %d %d %d %d %d %d %d %d %d %d %d %d ",IFM_Buffer[0],IFM_Buffer[1],IFM_Buffer[2],IFM_Buffer[3],IFM_Buffer[4],
+									IFM_Buffer[5],IFM_Buffer[6],IFM_Buffer[7],IFM_Buffer[8],IFM_Buffer[9],
+									IFM_Buffer[0],IFM_Buffer[0],IFM_Buffer[0],IFM_Buffer[13]);
+		$display("%d %d %d %d %d %d %d %d %d %d %d %d %d %d ",IFM_Buffer[14],IFM_Buffer[15],IFM_Buffer[16],IFM_Buffer[17],IFM_Buffer[18],
+									IFM_Buffer[19],IFM_Buffer[20],IFM_Buffer[21],IFM_Buffer[22],IFM_Buffer[23],
+									IFM_Buffer[24],IFM_Buffer[25],IFM_Buffer[26],IFM_Buffer[27]);
+		$display("%d %d %d %d",IFM_Buffer[28],IFM_Buffer[29],IFM_Buffer[30],IFM_Buffer[31]);
 		if(current_OFM_Buffer == 143) begin
 			last_convolution_done <= 1;
 			for(i=0;i<144;i=i+1)

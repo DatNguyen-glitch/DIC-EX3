@@ -22,7 +22,7 @@ reg [2:0] state_cs, state_ns;
 parameter IDLE = 3'd0;
 parameter UPDATE = 3'd1;
 parameter EXE = 3'd2;
-reg [7:0] i = 8'b00000000;
+reg [7:0] i = 8'b00000000, j = 8'b00000000;
 reg [7:0] current_pooling = 8'b00000000;
 //////////////The output port shoud be registers///////////////////////
 output reg out_valid;
@@ -32,7 +32,8 @@ reg [7:0] count = 8'b00000000;
 reg [7:0] count_wait = 8'b00000000;
 reg [7:0] current_IFM = 8'b00000000;
 reg [7:0] current_OFM_Buffer = 8'b00000000;
-reg [15:0] temp1, temp2;
+reg [15:0] temp1[0:31];
+reg [15:0] count_clk = 16'b0000000000000000;
 reg first_convolution_done, last_convolution_done;
 /////// 2 Buffer/////////////
 //You have to sue these buffers for the 3-1 ///////
@@ -41,8 +42,10 @@ reg [15:0]Weight_Buffer[0:8];  	//  Use this buffer to store Weight
 reg [7:0] OFM_Buffer[0:143];	//  Use this buffer to store OFM
 
 /////////////////////////////////////
-
-
+always@(posedge clk) begin
+	count_clk = count_clk + 1;
+	$display("CLK: %d", count_clk);
+end
 ////////Here just an example of how to use IFM_buffer & WEight_Buffer to store data////////
 //The storage mechanism can be modified, but not the buffer size cannot be modified
 always@(posedge clk or negedge rst_n) begin
@@ -62,14 +65,33 @@ always@(posedge clk or negedge rst_n) begin
 		current_IFM <= 0;
 		first_convolution_done <= 0;
 		last_convolution_done <= 0;
+		out_valid <= 0;
+		Out_OFM <= 0;
 	end
 	else if(in_valid) begin
-		if(count < 31) begin
-			IFM_Buffer[count]  <= In_IFM;
+		if(count < 196) begin
+			IFM_Buffer[31]  <= In_IFM;
 			count <= count + 1;
 		end	
+		else begin
+			IFM_Buffer[31] <= 0;
+			count <= count;
+		end
 	end
 
+end
+
+always @(posedge clk or negedge rst_n) begin
+    	if (!rst_n) begin
+        	for (j = 0; j < 31; j = j + 1) begin
+            		IFM_Buffer[j] <= 0;
+        	end
+    	end 
+	else begin
+        	for (j = 0; j < 31; j = j + 1) begin
+            	IFM_Buffer[j] <= IFM_Buffer[j + 1];
+        	end
+    	end
 end
 ///////////////////////////////////////////////////////
 
@@ -83,23 +105,23 @@ always@(*) begin
     case(state_cs)
         EXE: //////////////                  
         begin
-            if((current_IFM == 11) && (count_wait == 0))
-                state_ns = UPDATE;
+            if((current_IFM == 11) && (count_wait == 0) & in_valid)
+                state_ns <= UPDATE;
             else
-                state_ns = EXE;
+                state_ns <= EXE;
         end /////////
         UPDATE: //////////////
         begin
-            if((count_wait == 2) && in_valid) begin
-                state_ns = EXE;
+            if((count_wait == 1) && in_valid) begin
+                state_ns <= EXE;
 		current_IFM <= 0;
 	        end
             else
-                state_ns = UPDATE;
+                state_ns <= UPDATE;
         end
         default:
         begin                
-            state_ns = EXE;
+            state_ns <= EXE;
         end /////////
     endcase
 end
@@ -107,25 +129,28 @@ end
 always@(posedge clk or negedge rst_n) begin
 	if(!rst_n) begin
 		current_IFM <= 0;
-        count_wait <= 0;
+        	count_wait <= 0;
 	end
-	else if((state_cs == UPDATE) && in_valid) begin
-		for(i=0;i<30;i=i+1)
-			IFM_Buffer[i] <= IFM_Buffer[i+1];
-		IFM_Buffer[30] <= In_IFM;
-		count_wait <= count_wait + 1;
-		$display("count_wait): %d", count_wait);
-		$display("IFM_Buffer 3x3 Matrix (count_wait):");
-		$display("%d %d %d", IFM_Buffer[0], IFM_Buffer[1], IFM_Buffer[2]);
-		$display("%d %d %d", IFM_Buffer[14], IFM_Buffer[15], IFM_Buffer[16]);
-		$display("%d %d %d", IFM_Buffer[28], IFM_Buffer[29], IFM_Buffer[30]);
-		$display("%d %d %d %d %d %d %d %d %d %d %d %d %d %d ",IFM_Buffer[0],IFM_Buffer[1],IFM_Buffer[2],IFM_Buffer[3],IFM_Buffer[4],
-									IFM_Buffer[5],IFM_Buffer[6],IFM_Buffer[7],IFM_Buffer[8],IFM_Buffer[9],
-									IFM_Buffer[0],IFM_Buffer[0],IFM_Buffer[0],IFM_Buffer[13]);
-		$display("%d %d %d %d %d %d %d %d %d %d %d %d %d %d ",IFM_Buffer[14],IFM_Buffer[15],IFM_Buffer[16],IFM_Buffer[17],IFM_Buffer[18],
-									IFM_Buffer[19],IFM_Buffer[20],IFM_Buffer[21],IFM_Buffer[22],IFM_Buffer[23],
-									IFM_Buffer[24],IFM_Buffer[25],IFM_Buffer[26],IFM_Buffer[27]);
-		$display("%d %d %d %d",IFM_Buffer[28],IFM_Buffer[29],IFM_Buffer[30],IFM_Buffer[31]);	
+	else if((state_cs == UPDATE)) begin
+		if(in_valid) begin
+			for(i=0;i<31;i=i+1) begin
+				IFM_Buffer[i] <= IFM_Buffer[i+1];
+			end
+			//IFM_Buffer[30] <= In_IFM;
+			count_wait <= count_wait + 1;
+			$display("count_wait): %d", count_wait);
+			$display("IFM_Buffer 3x3 Matrix (count_wait):");
+			$display("%d %d %d", IFM_Buffer[0], IFM_Buffer[1], IFM_Buffer[2]);
+			$display("%d %d %d", IFM_Buffer[14], IFM_Buffer[15], IFM_Buffer[16]);
+			$display("%d %d %d", IFM_Buffer[28], IFM_Buffer[29], IFM_Buffer[30]);
+			$display("%d %d %d %d %d %d %d %d %d %d %d %d %d %d ",IFM_Buffer[0],IFM_Buffer[1],IFM_Buffer[2],IFM_Buffer[3],IFM_Buffer[4],
+										IFM_Buffer[5],IFM_Buffer[6],IFM_Buffer[7],IFM_Buffer[8],IFM_Buffer[9],
+										IFM_Buffer[10],IFM_Buffer[11],IFM_Buffer[12],IFM_Buffer[13]);
+			$display("%d %d %d %d %d %d %d %d %d %d %d %d %d %d ",IFM_Buffer[14],IFM_Buffer[15],IFM_Buffer[16],IFM_Buffer[17],IFM_Buffer[18],
+										IFM_Buffer[19],IFM_Buffer[20],IFM_Buffer[21],IFM_Buffer[22],IFM_Buffer[23],
+										IFM_Buffer[24],IFM_Buffer[25],IFM_Buffer[26],IFM_Buffer[27]);
+			$display("%d %d %d %d",IFM_Buffer[28],IFM_Buffer[29],IFM_Buffer[30],IFM_Buffer[31]);	
+		end
 	end
 end
 
@@ -144,12 +169,15 @@ always@(posedge clk or negedge rst_n) begin
 		for (i=0;i<143;i=i+1)
 			OFM_Buffer[i] <= 0;
 	end
-	else if((count > 30) && (state_cs == EXE) && in_valid) begin
+	else if((count > 31) && (state_cs == EXE)) begin
 		$display("IFM_Buffer 3x3 Matrix:");
 		$display("%d %d %d", IFM_Buffer[0], IFM_Buffer[1], IFM_Buffer[2]);
 		$display("%d %d %d", IFM_Buffer[14], IFM_Buffer[15], IFM_Buffer[16]);
 		$display("%d %d %d", IFM_Buffer[28], IFM_Buffer[29], IFM_Buffer[30]);	
-
+		$display("Weight_Buffer 3x3 Matrix:");
+		$display("%d %d %d", Weight_Buffer[0], Weight_Buffer[1], Weight_Buffer[2]);
+		$display("%d %d %d", Weight_Buffer[3], Weight_Buffer[4], Weight_Buffer[5]);
+		$display("%d %d %d", Weight_Buffer[6], Weight_Buffer[7], Weight_Buffer[8]);
 		OFM_Buffer[current_OFM_Buffer] <= IFM_Buffer[0]*Weight_Buffer[0]			// 3x3 convolution
 				  +IFM_Buffer[1]*Weight_Buffer[1]
 				  +IFM_Buffer[2]*Weight_Buffer[2]
@@ -160,39 +188,39 @@ always@(posedge clk or negedge rst_n) begin
 				  +IFM_Buffer[29]*Weight_Buffer[7]
 				  +IFM_Buffer[30]*Weight_Buffer[8];	
 		current_OFM_Buffer <= current_OFM_Buffer + 1;
+		$display("OFM_Buffer: %d",OFM_Buffer[current_OFM_Buffer]);
 	    	current_IFM <= current_IFM + 1;
 		count_wait <= 0;
 	    	$display("current_IFM: %d ", current_IFM);
 		if(current_IFM < 11) begin
-			for(i=0;i<30;i=i+1)
+			for(i=0;i<31;i=i+1)
 				IFM_Buffer[i] <= IFM_Buffer[i+1];
-			IFM_Buffer[30] <= In_IFM;
 		end
 		$display("IFM Buffer:");		
 		$display("%d %d %d %d %d %d %d %d %d %d %d %d %d %d ",IFM_Buffer[0],IFM_Buffer[1],IFM_Buffer[2],IFM_Buffer[3],IFM_Buffer[4],
 									IFM_Buffer[5],IFM_Buffer[6],IFM_Buffer[7],IFM_Buffer[8],IFM_Buffer[9],
-									IFM_Buffer[0],IFM_Buffer[0],IFM_Buffer[0],IFM_Buffer[13]);
+									IFM_Buffer[10],IFM_Buffer[11],IFM_Buffer[12],IFM_Buffer[13]);
 		$display("%d %d %d %d %d %d %d %d %d %d %d %d %d %d ",IFM_Buffer[14],IFM_Buffer[15],IFM_Buffer[16],IFM_Buffer[17],IFM_Buffer[18],
 									IFM_Buffer[19],IFM_Buffer[20],IFM_Buffer[21],IFM_Buffer[22],IFM_Buffer[23],
 									IFM_Buffer[24],IFM_Buffer[25],IFM_Buffer[26],IFM_Buffer[27]);
 		$display("%d %d %d %d",IFM_Buffer[28],IFM_Buffer[29],IFM_Buffer[30],IFM_Buffer[31]);
-		if(current_OFM_Buffer == 143) begin
+		if(current_OFM_Buffer == 144) begin
 			last_convolution_done <= 1;
 			for(i=0;i<144;i=i+1)
 				$display("%d ", OFM_Buffer[i]);
 		end
 	end
-	else begin
-		for (i=0;i<144;i=i+1)
-			OFM_Buffer[i] <= 0;
-	end
+	//else begin
+	//	for (i=0;i<144;i=i+1)
+	//		OFM_Buffer[i] <= 0;
+	//end
 end
 
 always@(posedge clk or negedge rst_n) begin
-    if(!rst_n) begin
-        Out_OFM <= 0;
-    end
-    else if(last_convolution_done == 1) begin
+	if(!rst_n) begin
+		Out_OFM <= 0;
+	end
+	else if(last_convolution_done == 1) begin
 		Out_OFM <= max_pooling(
                     OFM_Buffer[current_pooling],
                     OFM_Buffer[current_pooling + 1],
@@ -202,7 +230,10 @@ always@(posedge clk or negedge rst_n) begin
 		if(is_divisible_by_12(current_pooling+2)) begin
 			current_pooling <= current_pooling + 14;
 		end
-    end
+	end
+	//else if(out_valid == 0) begin
+        //	Out_OFM <= 0; // Reset Out_OFM when out_valid is low
+    	//end
 end
 function is_divisible_by_12;
     input [7:0] num;

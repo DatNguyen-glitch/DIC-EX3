@@ -1,11 +1,16 @@
+
+`include "../verif/Conv_unit.v"
+`include "../verif/Conv_fsm.v"
+
 module Convolution_without_pipeline(
-	//input
+//input
 clk,
 rst_n,
 in_valid,
 In_IFM,
 In_Weight,
 //output
+reg_conv_out,
 out_valid,
 Out_OFM
 
@@ -16,6 +21,7 @@ input [15:0]In_IFM;
 input [15:0]In_Weight;
 
 /* The output port should be registers */
+output reg_conv_out;
 output reg out_valid;
 output reg[35:0] Out_OFM;
 /*-------------------------------------------------------------------*/
@@ -23,76 +29,202 @@ output reg[35:0] Out_OFM;
 
 /*  2 Input Buffer Resigter	 */
 /* You have to use these buffers for the 3-1 */
-reg [15:0]IFM_Buffer[0:195] ;   	/*  Use this buffer to store IFM 	*/
-reg [15:0]Weight_Buffer[0:8];  		/*  Use this buffer to store Weight	*/
+reg [15:0] IFM_Buffer [0:195] ;   	/*  Use this buffer to store IFM 	*/
+reg [15:0] Weight_Buffer [0:8];  		/*  Use this buffer to store Weight	*/
 /*-------------------------------------------------------------------*/
+/* Define inner wires for module Convolution_without_pipeline */
+wire [35:0] conv_out;
+wire [1:0] conv_state;
 
-/* Define the window buffer by array of wires */
-wire [15:0] dat_window [8:0];
+/* Define inner register for module Convolution_without_pipeline */
+reg [35:0] reg_conv_out;
+reg [35:0] buf_conv_out [0:143];
+
 
 /* Define counter reg to stop data loading in */
-reg [7:0] count;	// Data loading counter
+reg [7:0] count_data;	// Data loading counter
+reg [3:0] conv_cnt_line;	// Data loading counter
+reg [1:0] conv_cnt_skip;	// Data loading counter
 
-/* Here just an example of how to use IFM_buffer & WEight_Buffer to store data */
-/* The storage mechanism can be modified, but not the buffer size cannot be modified */
+/*-------------------------------------------------------------------*/
+/* Define interger and parameter */
+integer i;
+parameter LOAD = 2'b00, EXE = 2'b01, WAIT = 2'b10;
+
 
 /* Loading 9 weights */ 
 /*-------------------------------------------------------------------*/
+
 always@(posedge clk or negedge rst_n) begin
 	if(!rst_n) begin
 		for (i=0; i<9; i=i+1)
 			Weight_Buffer[i] <= 0;
 	end
-	else if(in_valid && count < 9)
-		Weight_Buffer[count] <= In_Weight;
+	else if(in_valid && count_data < 9)
+		Weight_Buffer[count_data] <= In_Weight;
 end
 
 /*-------------------------------------------------------------------*/
 /* Loading the 32 input datas 16-bit at by shifting Reg by Reg */
+
+
+always@(posedge clk or negedge rst_n) begin
+    if(!rst_n) begin
+        count_data <= 0;
+        for (i = 0; i < 32; i = i + 1)
+            IFM_Buffer[i] <= 0;
+    end
+    else begin
+        if (count_data < 196) begin
+            IFM_Buffer[31] <= In_IFM;
+            count_data <= count_data + 1;
+        end
+        else begin
+            IFM_Buffer[31] <= 0;
+            count_data <= count_data;
+        end
+    end
+end
+
+genvar j;
+generate
+    for (j = 0; j < 31; j = j + 1) begin : shift_buffer
+        always @(posedge clk or negedge rst_n) begin
+            if (!rst_n)
+                IFM_Buffer[j] <= 0;
+            else
+                IFM_Buffer[j] <= IFM_Buffer[j + 1];
+        end
+    end
+endgenerate
+
+
+/*
+
 always@(posedge clk or negedge rst_n) begin
 	if(!rst_n) begin
+		count_data <= 0;
 		for (i=0; i<32; i=i+1)
 			IFM_Buffer[i] <= 0;
-		count <= 0;
 	end
 
 	else begin
-		if (count < 196) begin
+		if (count_data < 196) begin
 			IFM_Buffer[31] <= In_IFM;
-			count <= count + 1;
+			count_data <= count_data + 1;
 		end
 		else begin
 			IFM_Buffer[31] <= 0;
-			count <= count;
+			count_data <= count_data;
 		end
 		
 		genvar i;
 		generate
-			for (i = 0; i < 31; i = i + 1) : reg_gen
+			for (i = 0; i < 31; i = i + 1) begin
 				IFM_Buffer[i] <= IFM_Buffer[i+1];
+			end
 		endgenerate
 	end
 end
+*/
 
-/*-------------------------------------------------------------------*/
-/* Mapping data to the data buffer window dat_window */
+Conv_unit	u_Conv01 (
+	.data0(IFM_Buffer[0]),
+	.data1(IFM_Buffer[1]),
+	.data2(IFM_Buffer[2]),
+	.data3(IFM_Buffer[14]),
+	.data4(IFM_Buffer[15]),
+	.data5(IFM_Buffer[16]),
+	.data6(IFM_Buffer[28]),
+	.data7(IFM_Buffer[29]),
+	.data8(IFM_Buffer[30]),
 
-assign dat_window [0] <= IFM_buffer[0];
-assign dat_window [1] <= IFM_buffer[1];
-assign dat_window [2] <= IFM_buffer[2];
+	.weight0(Weight_Buffer[0]),
+	.weight1(Weight_Buffer[1]),
+	.weight2(Weight_Buffer[2]),
+	.weight3(Weight_Buffer[3]),
+	.weight4(Weight_Buffer[4]),
+	.weight5(Weight_Buffer[5]),
+	.weight6(Weight_Buffer[6]),
+	.weight7(Weight_Buffer[7]),
+	.weight8(Weight_Buffer[8]),
 
-assign dat_window [3] <= IFM_buffer[14];
-assign dat_window [4] <= IFM_buffer[15];
-assign dat_window [5] <= IFM_buffer[16];
+	.sum_final(conv_out)
+	);
 
-assign dat_window [6] <= IFM_buffer[28];
-assign dat_window [7] <= IFM_buffer[29];
-assign dat_window [8] <= IFM_buffer[30];
+Conv_fsm 	u_fsm01 (
+    .clk(clk),
+    .rst_n(rst_n),
+	.count_data(count_data), 
+	.count_line(conv_cnt_line), 
+	.count_skip(conv_cnt_skip), 
+    .state(conv_state)
+);
 
-/*-------------------------------------------------------------------*/
+always @(posedge clk or negedge rst_n) begin
+	if (!rst_n)	begin
+		conv_cnt_line <= 4'b0000;
+		conv_cnt_skip <= 2'b00;
+		reg_conv_out <= 0;
+	end
+	else begin
+		case (conv_state)
+			LOAD : begin
+				reg_conv_out <= reg_conv_out;
+				conv_cnt_line <= conv_cnt_line;
+				conv_cnt_skip <= conv_cnt_skip;
+				end
+			EXE : begin
+				reg_conv_out <= conv_out;
+				conv_cnt_line <= conv_cnt_line + 1;
+				conv_cnt_skip <= 2'b00;
+				end
+			WAIT : begin
+				reg_conv_out <= reg_conv_out;
+				conv_cnt_line <= 4'b0000;
+				conv_cnt_skip <= conv_cnt_skip + 1;
+				end
+			default : begin
+				conv_cnt_line <= 4'b0000;
+				conv_cnt_skip <= 2'b00;
+				end
+		endcase
+	end
+end
+
+always @(posedge clk or negedge rst_n) begin
+	if (!rst_n) begin
+		out_valid <= 0;
+	end
+	else begin
+		if (conv_state == EXE) begin
+			out_valid <=1;
+		end
+		else begin
+			out_valid <= 0;
+		end
+	end
+end
 
 
+/*
+always@(posedge clk or negedge rst_n) begin
+	if(!rst_n) begin
+		conv_cnt_out <= 0;
+		for (i=0; i<144; i=i+1)
+			IFM_Buffer[i] <= 0;
+	end
 
-
+	else begin
+		if (state == EXE) begin
+			buf_conv_out[conv_cnt_out] <= conv_out;
+			conv_cnt_out <= conv_cnt_out + 1;
+		end
+		else begin
+			conv_cnt_out <= conv_cnt_out;
+		end
+	end
+end
+*/
 
 endmodule
